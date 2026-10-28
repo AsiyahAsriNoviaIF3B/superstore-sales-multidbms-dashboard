@@ -1,0 +1,5 @@
+venv/
+.env
+*.db
+train.csv
+__pycache__/
