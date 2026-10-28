@@ -7,9 +7,31 @@ import plotly.express as px
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
-# Konfigurasi Halaman Web Streamlit
-st.set_page_config(page_title="Superstore Multi-DBMS Dashboard", layout="wide")
+# Konfigurasi Halaman Web Streamlit (Tema Profesional)
+st.set_page_config(
+    page_title="Executive Multi-DBMS Analytics Dashboard", 
+    page_icon="📊", 
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 load_dotenv()
+
+# Kustomisasi CSS untuk mempercantik Sidebar & Tag Multiselect
+st.markdown("""
+    <style>
+    /* Mengubah warna tag pada multiselect filter agar lebih profesional */
+    span[data-baseweb="tag"] {
+        background-color: #2b3a4a !important;
+        border: 1px solid #4a6fa5 !important;
+        border-radius: 4px !important;
+    }
+    /* Mempercantik Judul Sidebar */
+    .css-1d39125, .stSidebar {
+        background-color: #111827;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 @st.cache_data
 def load_data():
@@ -34,26 +56,76 @@ def load_data():
     df_merged['Order Date'] = pd.to_datetime(df_merged['Order Date'], format='mixed', dayfirst=True)
     return df_merged
 
-# Judul Dashboard
+# Judul Utama Dashboard
 st.title("📊 Superstore Multi-DBMS Analytics Dashboard")
-st.markdown("Visualisasi data hasil integrasi **MongoDB Atlas** (Data Transaksi) & **SQLite** (Data Pelanggan & Produk).")
+st.caption("Visualisasi Eksekutif Hasil Integrasi **MongoDB Atlas** (Data Transaksi) & **SQLite** (Data Pelanggan & Produk)")
 
 try:
     df = load_data()
 
-    # Sidebar Filter Interaktif
-    st.sidebar.header("Filter Data Interaktif")
-    selected_region = st.sidebar.multiselect("Pilih Region", options=df['Region'].unique(), default=df['Region'].unique())
-    selected_category = st.sidebar.multiselect("Pilih Kategori", options=df['Category'].unique(), default=df['Category'].unique())
+    # --- SIDEBAR PROFESIONAL ---
+    st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2920/2920329.png", width=60)
+    st.sidebar.title("Control Panel")
+    st.sidebar.markdown("---")
+    
+    st.sidebar.subheader("🎯 Filter Parameter Data")
+    
+    # 1. Filter Region
+    selected_region = st.sidebar.multiselect(
+        "📍 Wilayah (Region)", 
+        options=df['Region'].unique(), 
+        default=df['Region'].unique(),
+        help="Pilih satu atau beberapa wilayah transaksi penjualan"
+    )
+    
+    # 2. Filter Kategori Produk
+    selected_category = st.sidebar.multiselect(
+        "📦 Kategori Produk", 
+        options=df['Category'].unique(), 
+        default=df['Category'].unique(),
+        help="Pilih kategori barang yang ingin dianalisis"
+    )
 
-    filtered_df = df[(df['Region'].isin(selected_region)) & (df['Category'].isin(selected_category))]
+    # 3. Filter Rentang Tanggal (Date Range Filter)
+    min_date = df['Order Date'].min().date()
+    max_date = df['Order Date'].max().date()
+    
+    date_range = st.sidebar.date_input(
+        "📅 Rentang Tanggal Transaksi",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        help="Sesuaikan rentang waktu analisis transaksi"
+    )
 
-    # Metric Cards Utama (Format Angka Biasa Tanpa Simbol $)
+    # Status Arsitektur System Info di Sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🛠️ System Architecture")
+    st.sidebar.success("🟢 **MongoDB Atlas**: Connected")
+    st.sidebar.success("🟢 **SQLite DB**: Connected")
+    st.sidebar.info("⚡ **Federation Engine**: Pandas")
+
+    # Terapkan Filter pada Dataframe
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+        filtered_df = df[
+            (df['Region'].isin(selected_region)) & 
+            (df['Category'].isin(selected_category)) &
+            (df['Order Date'].dt.date >= start_date) & 
+            (df['Order Date'].dt.date <= end_date)
+        ]
+    else:
+        filtered_df = df[
+            (df['Region'].isin(selected_region)) & 
+            (df['Category'].isin(selected_category))
+        ]
+
+    # Metric Cards Utama (Format Angka Baku)
     col1, col2, col3 = st.columns(3)
     total_sales = filtered_df['Sales'].sum()
-    col1.metric("Total Sales", f"{total_sales:,.2f}")
-    col2.metric("Total Orders", f"{filtered_df['Order ID'].nunique():,}")
-    col3.metric("Total Customers", f"{filtered_df['Customer_Name'].nunique():,}")
+    col1.metric("Total Penjualan (Sales)", f"{total_sales:,.2f}")
+    col2.metric("Total Pesanan (Orders)", f"{filtered_df['Order ID'].nunique():,}")
+    col3.metric("Total Pelanggan (Customers)", f"{filtered_df['Customer_Name'].nunique():,}")
 
     st.markdown("---")
 
@@ -85,23 +157,23 @@ try:
     pie_col1, pie_col2 = st.columns(2)
 
     with pie_col1:
-        st.subheader("🍕 Proporsi Sales per Segment Pelanggan (Pie Chart)")
+        st.subheader("🍕 Proporsi Sales per Segment Pelanggan")
         df_segment = filtered_df.groupby('Segment')['Sales'].sum().reset_index()
         fig_pie = px.pie(
             df_segment, values='Sales', names='Segment', 
             color_discrete_sequence=px.colors.qualitative.Set3,
-            hole=0, # Pie chart penuh / lingkaran sempurna
+            hole=0,
             title="Distribusi Segment Pelanggan"
         )
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with pie_col2:
-        st.subheader("🍩 Distribusi Sales per Region (Donut Chart)")
+        st.subheader("🍩 Distribusi Sales per Region")
         df_region = filtered_df.groupby('Region')['Sales'].sum().reset_index()
         fig_donut = px.pie(
             df_region, values='Sales', names='Region', 
             color_discrete_sequence=px.colors.qualitative.Bold,
-            hole=0.4, # Donut chart (lingkaran berlubang di tengah)
+            hole=0.4,
             title="Persentase Penjualan per Region"
         )
         st.plotly_chart(fig_donut, use_container_width=True)
